@@ -25,8 +25,9 @@
 --
 -- Frame n is the nth machine frame notification from power-on (frame 1 is
 -- the first picture MAME renders); an input set in notifier n is seen by the
--- program from frame n's vblank on. The Verilator harness applies the same
--- schedule at the same vblanks (tools/snowboar_inputs_plan.py).
+-- program from the next vblank IRQ on (notifier n runs after IRQ n's handler
+-- has read the ports). The Verilator harness applies the same schedule at the
+-- same vblanks (tools/snowboar_inputs_plan.py).
 --
 -- Returns a table: sb.frame(n) applies frame n's inputs (call it first in
 -- the script's own frame notifier), sb.mode is the INPUTS value.

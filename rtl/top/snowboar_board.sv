@@ -38,7 +38,12 @@ module snowboar_board #(
     // (sim/snowboar/build.sh).
     parameter int unsigned IRQ_NUM   = 1,
     parameter int unsigned IRQ_DEN   = 253440,
-    parameter int unsigned IRQ_FIRST = 253440
+    parameter int unsigned IRQ_FIRST = 253440,
+    // The CG-1V's sample every SND_DEN / SND_NUM ticks: 1920 / 1 is its
+    // 1 MHz / 128 = 7,812.5 Hz. The harness sets 15000000 / 7812 for MAME's
+    // stream, which runs at 7,812 Hz (clock() / 128 in integers).
+    parameter int unsigned SND_NUM = 1,
+    parameter int unsigned SND_DEN = 1920
 )(
     input  wire        clk,            // 48 MHz
     input  wire        rst,            // core reset; the board adds !rom_loaded
@@ -95,7 +100,7 @@ module snowboar_board #(
     // For the platform's diagnostics: board time behind wall time (ticks),
     // IRQ 6's tick, the sprite buffer's copy running, and one clock each for
     // a sprite or tilemap line its next line's start found unfinished.
-    output wire [11:0] diag_owed,
+    output wire [12:0] diag_owed,
     output wire        diag_irq,
     output wire        diag_copying,
     output wire        diag_spr_cut,
@@ -255,7 +260,7 @@ snowboar_main u_main (
 );
 
 // ================================================================ sound
-snowboar_gae1_sound #(.TICKDIV(1920)) u_snd (
+snowboar_gae1_sound #(.TICKDIV(SND_DEN), .TICKNUM(SND_NUM)) u_snd (
     .clk(clk), .rst(cpu_rst), .tick(cpu_tick), .busy(snd_busy),
     .cs_sound(sndreg_cs), .cpu_aw(vmem_addr[7:1]), .cpu_we(sndreg_we),
     .cpu_uds(vmem_uds), .cpu_lds(vmem_lds), .cpu_wdata(vmem_wdata), .cpu_rdata(snd_rdata),

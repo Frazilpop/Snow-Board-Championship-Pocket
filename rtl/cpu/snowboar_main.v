@@ -38,7 +38,7 @@ module snowboar_main (
 
     output wire        cpu_tick,       // one 68000 clock of board time (snowboar_cpu_clk)
     input  wire        cpu_hold,       // board time stands still (the CG-1V computing a sample, the copy)
-    output wire [11:0] cpu_owed,       // board time behind wall time, in ticks
+    output wire [12:0] cpu_owed,       // board time behind wall time, in ticks
     output wire        cpu_lost,       // a tick dropped with the credit full (snowboar_cpu_clk)
 
     // Work RAM (fe0000-feffff, SRAM words 0-7fff) and extra RAM (212000-

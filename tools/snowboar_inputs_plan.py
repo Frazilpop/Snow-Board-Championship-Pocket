@@ -6,8 +6,11 @@
 #   python3 -I tools/snowboar_inputs_plan.py race <frames> > build/sim/race.txt
 #
 # One line a frame where something changes, "<frame> coin=1 start=0 ...":
-# the Lua script sets frame n's inputs in MAME's notifier n, seen from frame
-# n's vblank on; the harness applies line n at its own vblank IRQ n.
+# the Lua script sets frame n's inputs in MAME's notifier n, which runs after
+# vblank IRQ n's handler has read the ports, so the program sees them from
+# IRQ n + 1; the harness applies line m at its own vblank IRQ m, so frame n's
+# inputs are written on line n + 1. (Written on line n, the harness's race ran
+# a frame ahead of MAME's: its frame f was MAME's f + 1.)
 import sys
 
 
@@ -38,7 +41,7 @@ def main():
         cur = race(n) if mode == "race" else {k: 0 for k in race(0)}
         changed = {k: v for k, v in cur.items() if prev is None or prev[k] != v}
         if changed:
-            print(n, " ".join(f"{k}={v}" for k, v in changed.items()))
+            print(n + 1 if n else 0, " ".join(f"{k}={v}" for k, v in changed.items()))
         prev = cur
 
 

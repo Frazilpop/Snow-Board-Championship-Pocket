@@ -43,7 +43,7 @@
 // a frame to stats.csv: with the sprite engine's longest line in 48 MHz
 // clocks, the lines it did not finish, the most cells on one line, the
 // video line IRQ 6 fell on (240 = vblank's first) and the most board time
-// owed in the frame (ticks; 4095 = the credit full, ticks dropped).
+// owed in the frame (ticks; 8191 = the credit full, ticks dropped).
 // --wlog writes every 68000 write to the VRAM, the palette and the vregs
 // (200000-21800f) with the video line and pixel it landed on:
 // "<frame> <line> <pixel> <addr> <data> <mask>".
@@ -52,7 +52,8 @@
 // board time paused from release, the dump written into the VRAM, the
 // sprite buffer, the palette and the vregs, and `frames` counted in video
 // frames; frame 3 on is the dump's picture, to set against its screen.png.
-// --audio writes the CG-1V's samples, 7812.5 a second, as raw signed 16-bit
+// --audio writes the CG-1V's samples (7812 a second as MAME's stream; 7812.5,
+// the chip's own, with PIX=pocket) as raw signed 16-bit
 // little-endian pairs (its first output, then its second).
 
 #include "Vsnowboar_board.h"
@@ -69,6 +70,7 @@
 #include <cstdint>
 #include <string>
 #include <vector>
+#include <map>
 #include <set>
 #include <sys/stat.h>
 #include <unistd.h>
@@ -400,6 +402,23 @@ int main(int argc, char** argv) {
     std::vector<uint8_t> img(384 * 240 * 3, 0);
     int x = 0, y = 0, frame = 0;
     int prev_hb = 1, prev_vb = 1;
+    // A picture is named after the IRQ 6 that ends it. IRQ 6 counts board
+    // time and the picture wall time, so it can land on line 240, just past
+    // the vblank edge (board time trails by what the vblank copy owes): the
+    // picture is kept until that IRQ or eight lines into vblank, whichever
+    // is first, so a late IRQ still names it.
+    bool pic_pending = false;
+    int pic_lines = 0;
+    auto save_pic = [&](int n) {
+        pic_pending = false;
+        if (!dumps.count(n)) return;
+        char fn[1024];
+        snprintf(fn, sizeof fn, "%s/frame_%05d.ppm", outdir.c_str(), n);
+        FILE* f = fopen(fn, "wb");
+        fprintf(f, "P6\n384 240\n255\n");
+        fwrite(img.data(), 1, img.size(), f);
+        fclose(f);
+    };
     FILE* stats = fopen((outdir + "/stats.csv").c_str(), "w");
     fprintf(stats, "frame,cycles,bus_cycles,spr_max_clocks,spr_cut_lines,spr_max_cells,irq_line,owed_max,"
                    "tm_ovr,lost,wait0,wait1,wait2,wait3,wait4\n");
@@ -413,6 +432,7 @@ int main(int argc, char** argv) {
     uint64_t bus_cycles = 0, bus_cycles_f = 0;
     bool irq_prev = false;
 
+    std::map<int, long> cut_lines;      // sprite line -> times cut short
     auto fold_sprites = [&]() {
         if (spr_max > spr_max_all) spr_max_all = spr_max;
         if (spr_cells > spr_cells_all) spr_cells_all = spr_cells;
@@ -426,7 +446,8 @@ int main(int argc, char** argv) {
         if (R.snowboar_board__DOT__u_video__DOT__u_spr_l__DOT__m_done) {
             int c = R.snowboar_board__DOT__u_video__DOT__u_spr_l__DOT__m_last;
             int n = R.snowboar_board__DOT__u_video__DOT__u_spr_l__DOT__m_ncell;
-            if (c == 0xffff) spr_cut++; else if (c > spr_max) spr_max = c;
+            if (c == 0xffff) { spr_cut++; cut_lines[R.snowboar_board__DOT__u_video__DOT__u_spr_l__DOT__m_line]++; }
+            else if (c > spr_max) spr_max = c;
             if (n > spr_cells) spr_cells = n;
         }
         if (audio && t->snd_sample) {
@@ -489,6 +510,7 @@ int main(int argc, char** argv) {
                     fprintf(stderr, "frame %d of %d  (%ld accesses traced)\n", frame, frames, traced);
                 frame++;
                 apply_inputs(frame);
+                if (pic_pending) save_pic(frame);
             }
             irq_prev = irq;
         }
@@ -506,18 +528,13 @@ int main(int argc, char** argv) {
                 x++;
             }
             if (hb && !prev_hb && !vb) { y++; x = 0; }
+            if (hb && !prev_hb && vb && pic_pending && ++pic_lines >= 8) save_pic(frame);
             if (vb && !prev_vb) {
 #ifdef SDR_REAL
                 rb_want = true;
 #endif
-                if (dumps.count(frame)) {
-                    char fn[1024];
-                    snprintf(fn, sizeof fn, "%s/frame_%05d.ppm", outdir.c_str(), frame);
-                    FILE* f = fopen(fn, "wb");
-                    fprintf(f, "P6\n384 240\n255\n");
-                    fwrite(img.data(), 1, img.size(), f);
-                    fclose(f);
-                }
+                if (scene) save_pic(frame);
+                else { pic_pending = true; pic_lines = 0; }
                 if (scene) { if (frame >= 2) fold_sprites(); else spr_max = spr_cut = spr_cells = 0; frame++; }
                 y = 0; x = 0;
             }
@@ -547,6 +564,11 @@ int main(int argc, char** argv) {
     fclose(stats);
     fprintf(stderr, "sprites: longest line %d clocks, %d lines cut, most cells on a line %d\n",
             spr_max_all, spr_cut_all, spr_cells_all);
+    if (!cut_lines.empty()) {
+        fprintf(stderr, "sprite lines cut short (line x times):");
+        for (auto& kv : cut_lines) fprintf(stderr, " %d x%ld", kv.first, kv.second);
+        fprintf(stderr, "\n");
+    }
     fprintf(stderr, "tilemap lines overrun %d, board ticks lost %ld, most owed %d, longest waits (clocks) "
                     "program %d tilemap0 %d tilemap1 %d sprites %d sound %d\n",
             tm_ovr_all, lost_all, owed_all, wait_all[0], wait_all[1], wait_all[2], wait_all[3], wait_all[4]);

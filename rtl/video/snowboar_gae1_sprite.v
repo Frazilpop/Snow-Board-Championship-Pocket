@@ -278,16 +278,19 @@ module snowboar_gae1_sprite #(
 
 `ifdef VERILATOR
     // For the harness: the clocks each line takes from start to done (0xffff
-    // when the next start cuts it short) and the cells it drew.
+    // when the next start cuts it short, m_line the line it was drawing) and
+    // the cells it drew.
     reg [15:0] m_cyc = 16'd0, m_cells = 16'd0;
+    reg [8:0]  m_ln = 9'd0;
     reg [15:0] m_last  /*verilator public_flat_rd*/ = 16'd0;
     reg [15:0] m_ncell /*verilator public_flat_rd*/ = 16'd0;
+    reg [8:0]  m_line  /*verilator public_flat_rd*/ = 9'd0;
     reg        m_done  /*verilator public_flat_rd*/ = 1'b0;
     always @(posedge clk) begin
         m_done <= 1'b0;
         if (start) begin
-            if (state != IDLE) begin m_last <= 16'hffff; m_ncell <= m_cells; m_done <= 1'b1; end
-            m_cyc <= 16'd0; m_cells <= 16'd0;
+            if (state != IDLE) begin m_last <= 16'hffff; m_ncell <= m_cells; m_line <= m_ln; m_done <= 1'b1; end
+            m_cyc <= 16'd0; m_cells <= 16'd0; m_ln <= line;
         end else if (state != IDLE) begin
             m_cyc <= m_cyc + 16'd1;
             if (draw_start) m_cells <= m_cells + 16'd1;

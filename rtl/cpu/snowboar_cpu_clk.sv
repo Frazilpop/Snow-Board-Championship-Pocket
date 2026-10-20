@@ -11,12 +11,13 @@
 // the program -- the vblank IRQ, the CG-1V, the EEPROM's busy time --
 // counts ticks rather than 48 MHz clocks, so they stay in lockstep with it
 // however long the SDRAM takes; board time trails wall time by the credit
-// owed, a few microseconds at most.
+// owed. The sprite buffer's copy at vblank holds board time for ~3,220
+// ticks every frame (`hold`), so that much is owed after each one.
 //
-// The credit holds 4,095 ticks. When the SDRAM's waits outrun the catch-up
-// for longer than that (World Rally 2's power-on ROM test, at a line
-// latency of 14 clocks or more), board time drops the clocks it cannot give and marks
-// each with `lost`: the CPU runs that much slower, as an overloaded board
+// The credit holds 8,191 ticks: 4,095 left ~875 above the copy, and the
+// burst of line misses after Start filled it. When the SDRAM's waits
+// outrun the catch-up for longer than that, board time drops the clocks it
+// cannot give and marks each with `lost`: the CPU runs that much slower, as an overloaded board
 // would, and the vblank IRQ counts the lost clocks as given, so it stays on
 // the picture's vblank.
 //
@@ -40,12 +41,12 @@ module snowboar_cpu_clk (
     output reg  tick,           // with cpu_cen: one 68000 clock of board time
     output wire mid,            // between a phi1 and its phi2
     output wire DTACKn,
-    output wire [11:0] owed,    // board time behind wall time, in ticks
+    output wire [12:0] owed,    // board time behind wall time, in ticks
     output reg  lost            // a clock dropped with the credit full
 );
 
 reg  [5:0]  acc;
-reg  [11:0] credit;
+reg  [12:0] credit;
 reg         ph;                 // 0: phi1 next, 1: phi2 next
 wire        gain = run && (acc >= 6'd33);
 // Enables are registered: one may still land in the clock after AS falls,
@@ -54,16 +55,16 @@ wire        go   = run && !rom_wait && !hold;
 
 always @(posedge clk) begin
     if (rst) begin
-        acc <= 6'd0; credit <= 12'd0; ph <= 1'b0;
+        acc <= 6'd0; credit <= 13'd0; ph <= 1'b0;
         cpu_cen <= 1'b0; cpu_cenb <= 1'b0; tick <= 1'b0; lost <= 1'b0;
     end else begin
         if (run) acc <= gain ? acc + 6'd15 - 6'd48 : acc + 6'd15;
         cpu_cen <= 1'b0; cpu_cenb <= 1'b0; tick <= 1'b0; lost <= 1'b0;
-        if (go && !ph && (credit != 12'd0 || gain)) begin
+        if (go && !ph && (credit != 13'd0 || gain)) begin
             cpu_cen <= 1'b1; tick <= 1'b1; ph <= 1'b1;
-            credit  <= credit + {11'd0, gain} - 12'd1;
+            credit  <= credit + {12'd0, gain} - 13'd1;
         end else begin
-            if (credit != 12'hfff) credit <= credit + {11'd0, gain};
+            if (credit != 13'h1fff) credit <= credit + {12'd0, gain};
             else lost <= gain;
             if (go && ph) begin cpu_cenb <= 1'b1; ph <= 1'b0; end
         end

@@ -8,14 +8,18 @@
 
 module snowboar_gae1_sound #(
     parameter integer CLKDIV = 6144,
-    // TICKDIV != 0: a sample every TICKDIV board ticks (1920 = MAME's
-    // 128 us at 15 MHz), the first on the first tick after reset, as MAME's
-    // stream computes sample k at k * 128 us from power-on. While one is
+    // TICKDIV != 0: a sample every TICKDIV / TICKNUM board ticks (1920 / 1
+    // = the chip's 128 us at 15 MHz), sample k on the first tick at or after
+    // k * TICKDIV / TICKNUM, as MAME's stream computes sample k at k sample
+    // periods from power-on. MAME's period is not quite 128 us: its stream
+    // rate is clock() / 128 in integers, 7,812 Hz, so the harness matches it
+    // with 15,000,000 / 7,812 (sim/snowboar/build.sh). While one is
     // being computed busy holds board time (the 68000 and IRQ 6),
     // so the program sees it whole at that instant, as in MAME, where a read
     // or write first brings the stream up to now. 0: jlrh's, a sample every
     // CLKDIV clocks of wall time.
-    parameter integer TICKDIV = 0
+    parameter integer TICKDIV = 0,
+    parameter integer TICKNUM = 1
 )(
     input  wire        clk,
     input  wire        rst,
@@ -48,14 +52,17 @@ module snowboar_gae1_sound #(
     wire       cpu_inrange = cs_sound & (cpu_reg < 7'd56);
     assign cpu_rdata = sndregs[cpu_reg[5:0]];
 
-    reg [12:0] divcnt;
+    // TICKDIV mode: divcnt is the phase, ticks * TICKNUM mod TICKDIV; a
+    // sample is due on the tick whose phase is below TICKNUM.
+    reg [23:0] divcnt;
     reg        cen;
-    wire       tick_due = (TICKDIV != 0) && tick && divcnt == 13'd0;
+    wire       tick_due = (TICKDIV != 0) && tick && divcnt < TICKNUM;
+    wire [24:0] div_nxt = {1'b0, divcnt} + TICKNUM;
     always @(posedge clk) begin
         if (rst) begin divcnt <= 0; cen <= 0; end
         else if (TICKDIV != 0) begin
             cen <= tick_due;
-            if (tick) divcnt <= (divcnt == 13'd0) ? TICKDIV[12:0] - 13'd1 : divcnt - 13'd1;
+            if (tick) divcnt <= (div_nxt >= TICKDIV) ? div_nxt - TICKDIV : div_nxt[23:0];
         end
         else if (divcnt == CLKDIV-1) begin divcnt <= 0; cen <= 1; end
         else begin divcnt <= divcnt + 1'b1; cen <= 0; end
