@@ -27,7 +27,8 @@ module snowboar_video_top #(
 
     output wire [20:0] rom_a0,  input wire [63:0] gfx0_line, input wire gfx0_ok,
     output wire [20:0] rom_a1,  input wire [63:0] gfx1_line, input wire gfx1_ok,
-    output wire [20:0] rom_as,  input wire [63:0] gfxs_line, input wire gfxs_ok,
+    output wire [20:0] rom_as,  input wire [63:0] gfxs_line, input wire gfxs_ok,   // sprite cells' left halves
+    output wire [20:0] rom_asr, input wire [63:0] gfxsr_line, input wire gfxsr_ok, // and right halves
 
     output wire [7:0]  vga_r, vga_g, vga_b,
     output wire        hsync, vsync, hblank, vblank, de,
@@ -85,6 +86,7 @@ module snowboar_video_top #(
         .vreg0(spr_vreg0), .vreg1(spr_vreg1), .list_n0(spr_n0), .list_n1(spr_n1), .busy(),
         .spr_a(spr_a), .spr_q(spr_q),
         .rom_a(rom_as), .d_line(gfxs_line), .gfx_ok(gfxs_ok),
+        .rom_b(rom_asr), .d_line_r(gfxsr_line), .gfx_ok_r(gfxsr_ok),
         .lb_x(hpos_lb), .lb_q(lb_q),
         .wbank(wbank), .rbank(rbank), .cut(spr_cut)
     );

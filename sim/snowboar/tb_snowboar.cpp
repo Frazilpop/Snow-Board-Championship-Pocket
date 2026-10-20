@@ -11,7 +11,7 @@
 // Hosts snowboar_board the way the Pocket shell does, with behavioural
 // memories:
 //
-//   SDRAM   the .rom image; five independent line ports, fixed latency
+//   SDRAM   the .rom image; six independent line ports, fixed latency
 //           (--rom-lat, 48 MHz clocks). Optimistic: no contention, no
 //           refresh. It answers "does the board work", not "does it fit
 //           the bandwidth". Built with SDR=real (sim/snowboar/build.sh),
@@ -75,7 +75,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-static const int NP = 5;
+static const int NP = 6;
 static const int SDR_AW = 25;
 
 
@@ -421,7 +421,7 @@ int main(int argc, char** argv) {
     };
     FILE* stats = fopen((outdir + "/stats.csv").c_str(), "w");
     fprintf(stats, "frame,cycles,bus_cycles,spr_max_clocks,spr_cut_lines,spr_max_cells,irq_line,owed_max,"
-                   "tm_ovr,lost,wait0,wait1,wait2,wait3,wait4\n");
+                   "tm_ovr,lost,wait0,wait1,wait2,wait3,wait4,wait5\n");
     int tm_ovr = 0, tm_ovr_all = 0, wait_all[NP] = {0};
     long lost = 0, lost_all = 0;
     int owed_max = 0, owed_all = 0;
@@ -513,11 +513,11 @@ int main(int argc, char** argv) {
             if (irq && !irq_prev) {
                 if (frame + 1 >= trace_from) tracing = true;
                 if (trace && tracing) fprintf(trace, "# frame %d\n", frame + 1);
-                fprintf(stats, "%d,%llu,%llu,%d,%d,%d,%d,%d,%d,%ld,%d,%d,%d,%d,%d\n", frame,
+                fprintf(stats, "%d,%llu,%llu,%d,%d,%d,%d,%d,%d,%ld,%d,%d,%d,%d,%d,%d\n", frame,
                         (unsigned long long)(cyc - cyc0), (unsigned long long)(bus_cycles - bus_cycles_f),
                         spr_max, spr_cut, spr_cells,
                         (int)R.snowboar_board__DOT__u_video__DOT__u_timing__DOT__vcnt, owed_max,
-                        tm_ovr, lost, w_max[0], w_max[1], w_max[2], w_max[3], w_max[4]);
+                        tm_ovr, lost, w_max[0], w_max[1], w_max[2], w_max[3], w_max[4], w_max[5]);
                 if (owed_max > owed_all) owed_all = owed_max;
                 owed_max = 0;
                 tm_ovr_all += tm_ovr; tm_ovr = 0; lost_all += lost; lost = 0;
@@ -589,8 +589,9 @@ int main(int argc, char** argv) {
         fprintf(stderr, "\n%ld of them with cells still to draw\n", spr_cut_work);
     }
     fprintf(stderr, "tilemap lines overrun %d, board ticks lost %ld, most owed %d, longest waits (clocks) "
-                    "program %d tilemap0 %d tilemap1 %d sprites %d sound %d\n",
-            tm_ovr_all, lost_all, owed_all, wait_all[0], wait_all[1], wait_all[2], wait_all[3], wait_all[4]);
+                    "program %d tilemap0 %d tilemap1 %d sprites %d sound %d sprites (right) %d\n",
+            tm_ovr_all, lost_all, owed_all, wait_all[0], wait_all[1], wait_all[2], wait_all[3], wait_all[4],
+            wait_all[5]);
 #ifdef SDR_REAL
     fprintf(stderr, "SDRAM protocol violations: %u\n", sd->violations);
 #endif

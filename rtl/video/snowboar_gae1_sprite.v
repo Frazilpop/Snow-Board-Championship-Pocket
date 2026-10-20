@@ -23,10 +23,15 @@ module snowboar_gae1_sprite #(
     output reg  [14:0] spr_a,
     input  wire [15:0] spr_q,
 
-    // a fetch line: tile row half rom_a, plane p in d_line[8p+7:8p]
+    // a cell's two fetch lines, on two ports so the SDRAM controller has
+    // both in flight at once: the tile row's left half rom_a and its right
+    // half rom_b, plane p in bits [8p+7:8p] of each
     output reg  [20:0] rom_a,
     input  wire [63:0] d_line,
     input  wire        gfx_ok,
+    output reg  [20:0] rom_b,
+    input  wire [63:0] d_line_r,
+    input  wire        gfx_ok_r,
 
     input  wire [9:0]  lb_x,
     output wire [16:0] lb_q,
@@ -39,7 +44,7 @@ module snowboar_gae1_sprite #(
 );
 
     localparam [4:0] IDLE=0, CLR=1, RDW1F=2, RDW0=3, RDW2=4, RDW3=5, SETUP=6,
-                     D5ADR=7, D5RD=8, FSETL=9, FWL=10, FWR=14, NEXT=18, DON=19;
+                     D5ADR=7, D5RD=8, FW=10, NEXT=18, DON=19;
 
     reg [4:0]  state;
     reg [9:0]  spr_e;
@@ -62,13 +67,12 @@ module snowboar_gae1_sprite #(
     reg [11:0] cell_idx;
     reg        cell_hi;
     reg        cell_shadow;
-    reg [16:0] number;
     reg [3:0]  px;
     reg [9:0]  bx;
     reg signed [11:0] cell_x0;
     reg [8:0]  row_off;
 
-    reg [7:0]  gl0,gl1,gl2,gl3,gl4, gr0,gr1,gr2,gr3,gr4;
+    reg        fw_1st;
 
     localparam LBAW = $clog2(LBDEPTH);
     (* ramstyle = "no_rw_check, M10K" *) reg [16:0] lb0 [0:LBDEPTH-1];
@@ -90,7 +94,7 @@ module snowboar_gae1_sprite #(
 
     reg [7:0]  gld0,gld1,gld2,gld3,gld4, grd0,grd1,grd2,grd3,grd4;
     reg signed [11:0] cx0_d; reg [11:0] idx_d; reg shadow_d, xflip_d, hi_d;
-    reg [3:0]  px_d; reg draw_busy; reg draw_start;
+    reg [3:0]  px_d; reg draw_busy;
 
     wire [3:0] gpx   = xflip_d ? (4'd15 - px_d) : px_d;
     wire [2:0] bsel  = 3'd7 - gpx[2:0];
@@ -114,9 +118,6 @@ module snowboar_gae1_sprite #(
         ? {1'b1, pen_s1[3:0], (lb_cur[16] ? lb_cur[11:0] : 12'd0)}
         : {1'b1, 3'd0, hi_s1, (idx_s1 | {7'b0, pen_s1})};
 
-    wire [20:0] rom_a_l  = {number[15:0], 1'b0, gpy};
-    wire [20:0] rom_a_r  = {number[15:0], 1'b1, gpy};
-
     wire [8:0]  rely    = (line_r - sy0) & 9'h1ff;
     wire        covered = (rely < {ysize, 4'b0});
 
@@ -126,6 +127,15 @@ module snowboar_gae1_sprite #(
     wire        proceed_w = spr_q[9] & (rely_w < {ysize_w, 4'b0});
 
     wire [14:0] d5_addr = (ptr_w + {6'b0, row_off} + {10'b0, cx}) & 15'h7fff;
+    // While a cell's lines are fetched the VRAM port is free: the next
+    // cell's pointer is read then, so the cell after asks for its own lines
+    // on the clock this one is handed to the draw (spr_q holds it from FW's
+    // second clock on, which is why FW always takes two at least).
+    wire [14:0] d5_next = (d5_addr + 15'd1) & 15'h7fff;
+
+    // a cell from its pointer word (spr_q): its tile and colour
+    wire [16:0] number_w = {bank_hi, 10'b0} + {7'b0, spr_q[11:0]};
+    wire [7:0]  colour_w = {1'b0, color_base} + {4'b0, spr_q[15:12]};
     always @(*) begin
         case (state)
             CLR:   spr_a = base_word + 15'd1;
@@ -136,6 +146,7 @@ module snowboar_gae1_sprite #(
             RDW0:  spr_a = base_word + {3'b0, spr_e, 2'b10};
             RDW2:  spr_a = base_word + {3'b0, spr_e, 2'b11};
             D5ADR: spr_a = d5_addr;
+            FW:    spr_a = d5_next;
             NEXT:  spr_a = base_word + {3'b0, (spr_e + 10'd1), 2'b01};
             default: spr_a = base_word + {3'b0, spr_e, 2'b00};
         endcase
@@ -170,6 +181,12 @@ module snowboar_gae1_sprite #(
         clr_we_q <= lb_x[LBAW-1:0] != lbx_prev;
     end
 
+    // A cell is handed to the draw when both its lines are in and the draw
+    // is free or on its last pixel, so cells drawn back to back take 16
+    // clocks each.
+    wire draw_start = state == FW && !fw_1st && gfx_ok && gfx_ok_r
+                      && (!draw_busy || px_d == 4'd15);
+
     always @(posedge clk) if (ce) begin
         if (start)           draw_busy <= 1'b0;
 
@@ -185,7 +202,7 @@ module snowboar_gae1_sprite #(
     integer c_clr=0, c_fetch=0, c_pwr=0, c_iter=0, c_cells=0;
     always @(posedge clk) if (ce && !start) begin
         if (state==CLR) c_clr <= c_clr+1;
-        else if (state>=FSETL && state<=FWR) c_fetch <= c_fetch+1;
+        else if (state==FW) c_fetch <= c_fetch+1;
         else if (state!=IDLE && state!=DON) c_iter <= c_iter+1;
         if (draw_busy) c_pwr <= c_pwr+1;
         if (draw_start) c_cells <= c_cells+1;
@@ -194,7 +211,6 @@ module snowboar_gae1_sprite #(
     // synthesis translate_on
 
     always @(posedge clk) if (ce) begin
-        draw_start <= 1'b0;
         if (start) begin
             // synthesis translate_off
             `ifdef WRALLY2_SPRPROF
@@ -242,31 +258,36 @@ module snowboar_gae1_sprite #(
             end
 
             D5ADR: state <= D5RD;
+            // a sprite's first cell; the others are read in FW
             D5RD: begin
-                number      <= {bank_hi, 10'b0} + {7'b0, spr_q[11:0]};
                 // colour + offset past 0x7f is MAME's palette entry 0x1000 up:
                 // the first shadow variant
-                {cell_hi, cell_idx[11:5]} <= {1'b0, color_base} + {4'b0, spr_q[15:12]};
+                {cell_hi, cell_idx[11:5]} <= colour_w;
                 cell_idx[4:0] <= 5'b0;
-                cell_shadow <= ({1'b0, color_base} + {4'b0, spr_q[15:12]}) == 8'h7f;
-                state <= FSETL;
+                cell_shadow <= colour_w == 8'h7f;
+                rom_a  <= {number_w[15:0], 1'b0, gpy};
+                rom_b  <= {number_w[15:0], 1'b1, gpy};
+                fw_1st <= 1'b1;
+                state  <= FW;
             end
 
-            FSETL:  begin rom_a <= rom_a_l;  state <= FWL; end
-
-            FWL:    if (gfx_ok) begin
-                       gl0<=d_line[7:0]; gl1<=d_line[15:8]; gl2<=d_line[23:16]; gl3<=d_line[31:24]; gl4<=d_line[39:32];
-                       rom_a<=rom_a_r; state<=FWR;
-                   end
-            FWR:    if (gfx_ok && !draw_busy) begin
-                       gld0<=gl0; gld1<=gl1; gld2<=gl2; gld3<=gl3; gld4<=gl4;
-                       grd0<=d_line[7:0]; grd1<=d_line[15:8]; grd2<=d_line[23:16]; grd3<=d_line[31:24]; grd4<=d_line[39:32];
-                       cx0_d   <= $signed({2'b0, bx_cell}) + spradj;
-                       idx_d   <= cell_idx; shadow_d <= cell_shadow; xflip_d <= xflip; hi_d <= cell_hi;
-                       draw_start <= 1'b1;
-                       if (cx + 5'd1 < xsize) begin cx <= cx + 5'd1; state <= D5ADR; end
-                       else state <= NEXT;
-                   end
+            FW: begin
+                fw_1st <= 1'b0;
+                if (draw_start) begin
+                    gld0<=d_line[7:0];   gld1<=d_line[15:8];   gld2<=d_line[23:16];   gld3<=d_line[31:24];   gld4<=d_line[39:32];
+                    grd0<=d_line_r[7:0]; grd1<=d_line_r[15:8]; grd2<=d_line_r[23:16]; grd3<=d_line_r[31:24]; grd4<=d_line_r[39:32];
+                    cx0_d   <= $signed({2'b0, bx_cell}) + spradj;
+                    idx_d   <= cell_idx; shadow_d <= cell_shadow; xflip_d <= xflip; hi_d <= cell_hi;
+                    if (cx + 5'd1 < xsize) begin
+                        cx          <= cx + 5'd1;
+                        {cell_hi, cell_idx[11:5]} <= colour_w;
+                        cell_shadow <= colour_w == 8'h7f;
+                        rom_a       <= {number_w[15:0], 1'b0, gpy};
+                        rom_b       <= {number_w[15:0], 1'b1, gpy};
+                        fw_1st      <= 1'b1;
+                    end else state <= NEXT;
+                end
+            end
             NEXT: if (spr_e + 10'd1 < list_n) begin
                       spr_e <= spr_e + 10'd1;
                       state <= RDW1F;
@@ -316,9 +337,9 @@ module snowboar_gae1_sprite #(
 
     // synthesis translate_off
     integer k;
-    initial begin state=IDLE; busy=0; spr_e=0; px=0; clr_i=0; wbank_r=0; cx=0; number=0;
+    initial begin state=IDLE; busy=0; spr_e=0; px=0; clr_i=0; wbank_r=0; cx=0;
         dw_s1=0; dw_s2=0; clr_we_q=0; lb0_rq=0; lb1_rq=0; wd_s2=0; wa_s2=0;
-        draw_busy=0; draw_start=0; px_d=0; cut=0;
+        draw_busy=0; fw_1st=0; px_d=0; cut=0;
         for (k=0;k<LBDEPTH;k=k+1) begin lb0[k]=0; lb1[k]=0; end end
     // synthesis translate_on
 endmodule

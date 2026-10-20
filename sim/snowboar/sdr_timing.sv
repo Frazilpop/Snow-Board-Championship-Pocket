@@ -3,8 +3,8 @@
 // harness's timing (World Rally 2's).
 //
 // kaneko_sdram_x2 and kaneko_sdram as World Rally 2's core_top.v sets them
-// up, with the board's fifth port (six ports: the board's five and the
-// shell's read-back of line 0, URGENT 01_1111, T_REFI 700, T_RC 11), in
+// up, with the board's fifth and sixth ports (seven: the board's six and the
+// shell's read-back of line 0, URGENT 011_1111, T_REFI 700, T_RC 11), in
 // front of sdram_model. sim/snowboar/build.sh with SDR=real builds this as
 // a second model (Vsdr_timing); tb_snowboar clocks it
 // twice per 48 MHz clock and takes only the acknowledges from it: the data
@@ -15,7 +15,7 @@
 `default_nettype none
 
 module sdr_timing #(
-    parameter int unsigned NP = 6,
+    parameter int unsigned NP = 7,
     parameter int unsigned AW = 25
 ) (
     input  wire             clk_fast,       // 96 MHz
@@ -58,7 +58,7 @@ kaneko_sdram #(
     .COL_BITS (10), .NP(NP),
     .T_REFI   (700), .T_RC(11),
     .INIT_NOP (600),                // the power-up wait, shortened
-    .URGENT   (6'b01_1111)
+    .URGENT   (7'b011_1111)
 ) u_ctrl (
     .clk(clk_fast), .rst_n(rst_n), .ready(ready),
     .rd_lat_sel(2'd0),              // CL+3: sdram_model's phase (the Pocket: CL+2)

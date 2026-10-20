@@ -17,15 +17,20 @@
 //
 // SDRAM line ports (64-bit lines, in the layout tools/pocket/build_rom.py
 // writes): 0 the 68000's program, 1 tilemap 0, 2 tilemap 1, 3 sprites,
-// 4 sound. A tile row half – all five planes of eight pixels – is one line;
-// the samples are in bytes 5 and 6 of the same lines.
+// 4 sound, 5 sprites again. A tile row half – all five planes of eight
+// pixels – is one line; the samples are in bytes 5 and 6 of the same lines.
+// The sprite engine asks for a cell's two halves on ports 3 and 5 at once,
+// so the controller has both in flight: one after the other on one port
+// they cost a cell ~20 clocks on the shell's controller, more than its
+// 16-clock draw, and the busiest line in the game (102 cells) ran to the
+// 3,072 clocks a line has.
 
 `timescale 1ns/1ps
 `default_nettype none
 
 module snowboar_board #(
     parameter int unsigned SDR_AW  = 25,
-    parameter int unsigned NP      = 5,
+    parameter int unsigned NP      = 6,
     // Pixel clock = clk * PIX_NUM / PIX_DEN. 1/6 is jlrh's 8 MHz, a
     // 512 x 264 frame at 59.19 Hz. The harness sets 13002/78125 to stretch
     // the same frame to MAME's 59.1 Hz, so its IRQs fall where MAME's do.
@@ -202,6 +207,7 @@ endfunction
 wire [20:0] tm0_a;   wire tm0_ok;   wire [63:0] tm0_line;
 wire [20:0] tm1_a;   wire tm1_ok;   wire [63:0] tm1_line;
 wire [20:0] spr_ra;  wire spr_ok;   wire [63:0] spr_line;
+wire [20:0] spr_rb;  wire spr_okb;  wire [63:0] spr_lineb;
 wire [23:0] snd_ra;  wire snd_cs;   wire snd_ok;  wire [63:0] snd_line;
 
 snowboar_romport #(.AW(SDR_AW)) u_rp_tm0 (
@@ -218,6 +224,11 @@ snowboar_romport #(.AW(SDR_AW)) u_rp_spr (
     .clk(clk), .rst(cpu_rst),
     .cs(1'b1), .line(gfx_line(spr_ra)), .ok(spr_ok), .data(spr_line),
     .rom_req(rom_req[3]), .rom_addr(rom_addr[3]), .rom_ack(rom_ack[3]), .rom_dout(rom_dout[3])
+);
+snowboar_romport #(.AW(SDR_AW)) u_rp_spr_b (
+    .clk(clk), .rst(cpu_rst),
+    .cs(1'b1), .line(gfx_line(spr_rb)), .ok(spr_okb), .data(spr_lineb),
+    .rom_req(rom_req[5]), .rom_addr(rom_addr[5]), .rom_ack(rom_ack[5]), .rom_dout(rom_dout[5])
 );
 // A sample byte at gfx offset G is in plane P = G >> 22 at o = G & 0x3fffff:
 // byte P of line o in the lower half of the plane, byte 5 + P of line
@@ -324,6 +335,7 @@ snowboar_video_top u_video (
     .rom_a0(tm0_a), .gfx0_line(tm0_line), .gfx0_ok(tm0_ok),
     .rom_a1(tm1_a), .gfx1_line(tm1_line), .gfx1_ok(tm1_ok),
     .rom_as(spr_ra), .gfxs_line(spr_line), .gfxs_ok(spr_ok),
+    .rom_asr(spr_rb), .gfxsr_line(spr_lineb), .gfxsr_ok(spr_okb),
     .vga_r(r), .vga_g(g), .vga_b(b),
     .hsync(hs), .vsync(vs), .hblank(hblank), .vblank(vblank), .de(),
     .vblank_irq(vblank_irq),
