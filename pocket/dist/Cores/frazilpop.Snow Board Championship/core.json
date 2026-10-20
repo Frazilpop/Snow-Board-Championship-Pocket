@@ -1,0 +1,36 @@
+{
+    "core": {
+        "magic": "APF_VER_1",
+        "metadata": {
+            "platform_ids": [
+                "snowboar"
+            ],
+            "shortname": "Snow Board Championship",
+            "description": "Gaelco's two-player downhill snowboard racer.",
+            "author": "frazilpop",
+            "url": "https://github.com/Frazilpop/Snow-Board-Championship-Pocket",
+            "version": "0.0.0",
+            "date_release": "2026-10-20"
+        },
+        "framework": {
+            "target_product": "Analogue Pocket",
+            "version_required": "1.1",
+            "sleep_supported": false,
+            "dock": {
+                "supported": true,
+                "analog_output": false
+            },
+            "hardware": {
+                "link_port": false,
+                "cartridge_adapter": -1
+            }
+        },
+        "cores": [
+            {
+                "name": "default",
+                "id": 0,
+                "filename": "bitstream.rbf_r"
+            }
+        ]
+    }
+}

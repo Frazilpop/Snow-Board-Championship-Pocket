@@ -1,0 +1,4 @@
+MC68000 @ 15 MHz, Gaelco CG-1V video and 7-channel PCM sound, Lattice ispLSI protection
+
+Based on Frazilpop/World-Rally-2-Pocket and jlrh/gaelco-fpga cores/aligator (GPL-3.0).
+Analogue Pocket port by Frazilpop.
