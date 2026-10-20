@@ -1,22 +1,22 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// World Rally 2 (Pocket) — the 68000's clock: 13 MHz of board time.
+// Snow Board Championship (Pocket) — the 68000's clock: 15 MHz of board time.
 //
 // The real board has no wait states; here the program comes from SDRAM. So
 // the 68000 is never shown one: while a ROM read waits for its line the CPU
 // is simply not clocked, and the clocks it missed are owed to it (credit,
-// 13 per 48 MHz clocks) and given back at up to 24 MHz once the data is in.
+// 15 per 48 MHz clocks) and given back at up to 24 MHz once the data is in.
 // Seen from the CPU every bus cycle takes four clocks, as in MAME.
 //
 // `tick` marks each 68000 clock given. Everything that must keep step with
-// the program -- the DS5002FP, the vblank IRQ -- counts ticks rather than
-// 48 MHz clocks, so the three stay in lockstep (MAME's perfect quantum)
+// the program -- the vblank IRQ, the CG-1V, the EEPROM's busy time --
+// counts ticks rather than 48 MHz clocks, so they stay in lockstep with it
 // however long the SDRAM takes; board time trails wall time by the credit
 // owed, a few microseconds at most.
 //
 // The credit holds 4,095 ticks. When the SDRAM's waits outrun the catch-up
-// for longer than that (the power-on ROM test, at a line latency of 14
-// clocks or more), board time drops the clocks it cannot give and marks
-// each with `lost`: the CPUs run that much slower, as an overloaded board
+// for longer than that (World Rally 2's power-on ROM test, at a line
+// latency of 14 clocks or more), board time drops the clocks it cannot give and marks
+// each with `lost`: the CPU runs that much slower, as an overloaded board
 // would, and the vblank IRQ counts the lost clocks as given, so it stays on
 // the picture's vblank.
 //
@@ -28,7 +28,7 @@
 `timescale 1ns/1ps
 `default_nettype none
 
-module wrally2_cpu_clk (
+module snowboar_cpu_clk (
     input  wire rst,
     input  wire clk,            // 48 MHz
     input  wire run,            // 0 = paused: no credit, no clocks
@@ -47,7 +47,7 @@ module wrally2_cpu_clk (
 reg  [5:0]  acc;
 reg  [11:0] credit;
 reg         ph;                 // 0: phi1 next, 1: phi2 next
-wire        gain = run && (acc >= 6'd35);
+wire        gain = run && (acc >= 6'd33);
 // Enables are registered: one may still land in the clock after AS falls,
 // which is S3, two phases before the 68000 samples DTACK.
 wire        go   = run && !rom_wait && !hold;
@@ -57,7 +57,7 @@ always @(posedge clk) begin
         acc <= 6'd0; credit <= 12'd0; ph <= 1'b0;
         cpu_cen <= 1'b0; cpu_cenb <= 1'b0; tick <= 1'b0; lost <= 1'b0;
     end else begin
-        if (run) acc <= gain ? acc + 6'd13 - 6'd48 : acc + 6'd13;
+        if (run) acc <= gain ? acc + 6'd15 - 6'd48 : acc + 6'd15;
         cpu_cen <= 1'b0; cpu_cenb <= 1'b0; tick <= 1'b0; lost <= 1'b0;
         if (go && !ph && (credit != 12'd0 || gain)) begin
             cpu_cen <= 1'b1; tick <= 1'b1; ph <= 1'b1;

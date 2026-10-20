@@ -1,6 +1,13 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Snow Board Championship (Pocket) — one CG-1V tilemap, line-buffered:
+// 64 x 32 tiles of 16 x 16, 5 bpp, the line ahead drawn while one shows.
+// jlrh's engine as World Rally 2 has it; here the colour is 7 bits
+// (MAME's one-screen get_tile_info) and the tile pair waits for tp_gnt,
+// the two tilemaps sharing the VRAM's video port.
+
 `default_nettype none
 
-module wrally2_gae1_tilemap (
+module snowboar_gae1_tilemap (
     input  wire        clk,
     input  wire        ce,
     input  wire        start,
@@ -12,6 +19,7 @@ module wrally2_gae1_tilemap (
 
     output reg  [13:0] tp_idx,
     output wire        tp_rd,
+    input  wire        tp_gnt,          // tp_rd taken this clock: tp_q the next
     input  wire [31:0] tp_q,
 
     // a fetch line: tile row half rom_a, plane p in d_line[8p+7:8p]
@@ -89,10 +97,10 @@ module wrally2_gae1_tilemap (
                 tp_idx <= {bank, tindex_f};
                 state  <= RDTP;
             end
-            RDTP: state <= ATTR;
+            RDTP: if (tp_gnt) state <= ATTR;
             ATTR: begin
                 code_r  <= code_w; flipx_r <= flipx_w; flipy_r <= flipy_w;
-                color_r <= {1'b0, word0[14:9]};
+                color_r <= word0[15:9];
                 rom_a   <= elem_w;
                 state   <= WAITG;
             end

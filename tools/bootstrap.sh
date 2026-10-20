@@ -40,11 +40,7 @@ done
 # gaelco-fpga is jlrh's Gaelco MiSTer cores: World Rally 2's GAE1 is what the
 # World Rally 2 Pocket core (this board's starting point) was built from, and
 # Alligator Hunt (cores/aligator) is the same chip on one screen with both
-# tilemaps shown. Of jtcores only jtframe's RAM primitives are fetched.
-#
-# jteeprom is jotego's serial EEPROM (jt9346), the board's 93C66; jtcores
-# carries it as a submodule (modules/jteeprom), so it is cloned on its own,
-# at the commit jtcores' pin records.
+# tilemaps shown.
 #
 # fx68k: jtfpga/fx68k, whose hdl/verilator/ flattens the s_nanod struct that
 # Verilator cannot simulate in upstream's fx68k.sv (BLKANDNBLK on 'Nanod').
@@ -52,8 +48,6 @@ done
 
 DEPS=(
   "gaelco-fpga|jlrh/gaelco-fpga|main|GAE1 / CG-1V video and sound, 68000 bus (World Rally 2, Alligator Hunt)|GPL-3.0|yes|"
-  "jtcores|jotego/jtcores|master|jtframe RAM primitives|GPL-3.0-or-later|no|/LICENSE /modules/jtframe/LICENSE /modules/jtframe/hdl/ram/*"
-  "jteeprom|jotego/jteeprom|master|the 93C66 serial EEPROM (jt9346)|GPL-3.0-or-later|no|"
   "fx68k|jtfpga/fx68k|master|68000 main CPU (Verilator variant)|GPL-3.0-only|yes|"
   "pocket-utils|agg23/analogue-pocket-utils|master|Pocket shell IP: data loader, PSRAM, I2S audio, sync FIFO|MIT|yes|"
 )
@@ -305,11 +299,6 @@ Read this before copying a single line out of third_party/.
                Hunt, credited as such. Its fx68k copy and the mc8051 netlist
                carry their own terms and are not used here.
 
-  jtcores      GPL-3.0-or-later — Jose Tejada (jotego). jtframe_dual_ram and
-               jtframe_ram. Re-check the headers on every --update.
-
-  jteeprom     GPL-3.0-or-later — Jose Tejada (jotego). jt9346, the 93C66.
-
   fx68k        GPL-3.0-only — Jorge Cwik. No or-later grant, so taking it
                makes the whole core GPL-3.0-only.
 
@@ -329,7 +318,7 @@ Useful paths now available:
   third_party/mame/src/mame/gaelco/gaelco2_m.cpp      the protection, init_snowboara
   third_party/mame/src/mame/gaelco/gaelco2_v.cpp      GAE1 video
   third_party/mame/src/devices/sound/gaelco.cpp       GAE1 sound
-  third_party/jteeprom/hdl/jt9346.v                   the 93C66
+  third_party/mame/src/devices/machine/eepromser.cpp  the 93C66, as the board's EEPROM behaves
   third_party/fx68k/hdl/verilator/                    68000 (simulation)
   third_party/pocket-utils/ip/                        the Pocket shell's IP
 NEXT

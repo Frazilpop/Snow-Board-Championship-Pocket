@@ -1,6 +1,6 @@
 `default_nettype none
 
-module wrally2_video_timing #(
+module snowboar_video_timing #(
 
     parameter HFP  = 24,
     parameter HSW  = 48,

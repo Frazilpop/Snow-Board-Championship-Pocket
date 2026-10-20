@@ -1,6 +1,14 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Snow Board Championship (Pocket) — the CG-1V's sprites, one line ahead
+// into a line buffer, from the copy of the VRAM taken at vblank. World
+// Rally 2's engine (jlrh's, reworked) in MAME's one-screen mode
+// (gaelco2_v.cpp draw_sprites, m_dual_monitor false): every enabled entry
+// is drawn, whatever its word 0 bit 15 says, and the shadow / highlight
+// colour is 0x7f exactly (jlrh's aligator_gae1_sprite.v has the same rule).
+
 `default_nettype none
 
-module wrally2_gae1_sprite #(
+module snowboar_gae1_sprite #(
 
     parameter LBDEPTH = 512
 )(
@@ -8,8 +16,6 @@ module wrally2_gae1_sprite #(
     input  wire        ce,
     input  wire        start,
     input  wire [8:0]  line,
-    input  wire        index,
-    input  wire        twin,
     input  wire [15:0] vreg0, vreg1,
     output reg         busy,
 
@@ -53,6 +59,7 @@ module wrally2_gae1_sprite #(
 
     reg [4:0]  cx;
     reg [11:0] cell_idx;
+    reg        cell_hi;
     reg        cell_shadow;
     reg [16:0] number;
     reg [3:0]  px;
@@ -77,10 +84,9 @@ module wrally2_gae1_sprite #(
     wire [4:0] ex      = xflip ? (xsize - 5'd1 - cx) : cx;
     wire [9:0] bx_cell = (sx0 + {1'b0, ex, 4'b0}) & 10'h3ff;
 
-    wire signed [11:0] xoff_cell = (twin & color_base[6]) ? 12'sd384 : 12'sd0;
 
     reg [7:0]  gld0,gld1,gld2,gld3,gld4, grd0,grd1,grd2,grd3,grd4;
-    reg signed [11:0] cx0_d, xoff_d; reg [11:0] idx_d; reg shadow_d, xflip_d;
+    reg signed [11:0] cx0_d; reg [11:0] idx_d; reg shadow_d, xflip_d, hi_d;
     reg [3:0]  px_d; reg draw_busy; reg draw_start;
 
     wire [3:0] gpx   = xflip_d ? (4'd15 - px_d) : px_d;
@@ -93,17 +99,17 @@ module wrally2_gae1_sprite #(
     wire [4:0] pen   = {p4b[bsel], p3b[bsel], p2b[bsel], p1b[bsel], p0b[bsel]};
     wire signed [11:0] xraw  = cx0_d + $signed({8'b0, px_d});
     wire       xin   = (xraw >= 0) && (xraw < 12'sd384);
-    wire [9:0] lb_wa = (xraw + xoff_d);
+    wire [9:0] lb_wa = xraw[9:0];
 
     wire       pen_ok   = shadow_d ? (pen != 5'd0 && !pen[4]) : (pen != 5'd0);
     wire       do_write = draw_busy && pen_ok && xin;
-    reg        dw_s1, sh_s1; reg [4:0] pen_s1; reg [11:0] idx_s1; reg [LBAW-1:0] wa_s1;
+    reg        dw_s1, sh_s1, hi_s1; reg [4:0] pen_s1; reg [11:0] idx_s1; reg [LBAW-1:0] wa_s1;
     reg        dw_s2; reg [16:0] wd_s2; reg [LBAW-1:0] wa_s2;
     reg        clr_we_q; reg [LBAW-1:0] clr_wa_q, lbx_prev;
     wire [16:0] lb_cur  = is0w ? lb0_rq : lb1_rq;
     wire [16:0] lb_new  = sh_s1
         ? {1'b1, pen_s1[3:0], (lb_cur[16] ? lb_cur[11:0] : 12'd0)}
-        : {1'b1, 4'd0, (idx_s1 | {7'b0, pen_s1})};
+        : {1'b1, 3'd0, hi_s1, (idx_s1 | {7'b0, pen_s1})};
 
     wire [20:0] rom_a_l  = {number[15:0], 1'b0, gpy};
     wire [20:0] rom_a_r  = {number[15:0], 1'b1, gpy};
@@ -151,7 +157,7 @@ module wrally2_gae1_sprite #(
     end
 
     always @(posedge clk) if (ce) begin
-        dw_s1 <= do_write; sh_s1 <= shadow_d; pen_s1 <= pen; idx_s1 <= idx_d; wa_s1 <= lb_wa[LBAW-1:0];
+        dw_s1 <= do_write; sh_s1 <= shadow_d; hi_s1 <= hi_d; pen_s1 <= pen; idx_s1 <= idx_d; wa_s1 <= lb_wa[LBAW-1:0];
         dw_s2 <= dw_s1;    wd_s2 <= lb_new;       wa_s2  <= wa_s1;
 
         // The buffer on show is cleared behind the pixel it has just shown
@@ -213,8 +219,7 @@ module wrally2_gae1_sprite #(
             end
             RDW0: begin
                 bank_hi <= spr_q[8:0]; color_base <= spr_q[15:9];
-
-                state <= (~twin & (spr_q[15] != index)) ? NEXT : RDW2;
+                state <= RDW2;
             end
             RDW2: begin
                 sx0   <= spr_q[9:0];
@@ -236,8 +241,11 @@ module wrally2_gae1_sprite #(
             D5ADR: state <= D5RD;
             D5RD: begin
                 number      <= {bank_hi, 10'b0} + {7'b0, spr_q[11:0]};
-                cell_idx    <= {(color_base + {3'b0, spr_q[15:12]}), 5'b0};
-                cell_shadow <= (((color_base + {3'b0, spr_q[15:12]}) & 7'h3f) == 7'h3f);
+                // colour + offset past 0x7f is MAME's palette entry 0x1000 up:
+                // the first shadow variant
+                {cell_hi, cell_idx[11:5]} <= {1'b0, color_base} + {4'b0, spr_q[15:12]};
+                cell_idx[4:0] <= 5'b0;
+                cell_shadow <= ({1'b0, color_base} + {4'b0, spr_q[15:12]}) == 8'h7f;
                 state <= FSETL;
             end
 
@@ -251,7 +259,7 @@ module wrally2_gae1_sprite #(
                        gld0<=gl0; gld1<=gl1; gld2<=gl2; gld3<=gl3; gld4<=gl4;
                        grd0<=d_line[7:0]; grd1<=d_line[15:8]; grd2<=d_line[23:16]; grd3<=d_line[31:24]; grd4<=d_line[39:32];
                        cx0_d   <= $signed({2'b0, bx_cell}) + spradj;
-                       idx_d   <= cell_idx; shadow_d <= cell_shadow; xflip_d <= xflip; xoff_d <= xoff_cell;
+                       idx_d   <= cell_idx; shadow_d <= cell_shadow; xflip_d <= xflip; hi_d <= cell_hi;
                        draw_start <= 1'b1;
                        if (cx + 5'd1 < xsize) begin cx <= cx + 5'd1; state <= D5ADR; end
                        else state <= NEXT;

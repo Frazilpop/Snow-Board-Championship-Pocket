@@ -1,11 +1,12 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Snow Board Championship (Pocket) — the CG-1V's one screen: both tilemaps
+// and the sprites, line buffered, on the 48 MHz clock; the pixel is the
+// palette word and the shadow/highlight variant, out at 8 bits a channel as
+// MAME's palette has them. World Rally 2's, with the second tilemap.
+
 `default_nettype none
 
-// The GAE1's left screen: tilemap 0 and the sprites for monitor 0, line
-// buffered, on the 48 MHz clock; the pixel is the palette word and the
-// shadow/highlight variant, out at 8 bits a channel as MAME's palette has
-// them.
-
-module wrally2_video_top #(
+module snowboar_video_top #(
     parameter integer LAT      = 14,
     parameter integer SPR_HDLY = 15
 )(
@@ -13,14 +14,18 @@ module wrally2_video_top #(
     input  wire        rst,
     input  wire        ce_pix,
 
-    input  wire [15:0] vreg0, vreg1,
+    input  wire [15:0] vreg0, vreg1,         // the tilemaps', live
+    input  wire [15:0] spr_vreg0, spr_vreg1, // the sprites', taken with the buffer
 
-    output wire [13:0] tp0_idx, output wire tp0_rd, input wire [31:0] tp0_q,
+    output wire [13:0] tp0_idx, output wire tp0_rd,
+    output wire [13:0] tp1_idx, output wire tp1_rd, input wire tp1_gnt,
+    input  wire [31:0] tp_q,
     output wire [14:0] wrd_a,   input wire [15:0] wrd_q,
     output wire [14:0] spr_a,   input wire [15:0] spr_q,
     output wire [11:0] pal_a,   input wire [15:0] pal_q,
 
     output wire [20:0] rom_a0,  input wire [63:0] gfx0_line, input wire gfx0_ok,
+    output wire [20:0] rom_a1,  input wire [63:0] gfx1_line, input wire gfx1_ok,
     output wire [20:0] rom_as,  input wire [63:0] gfxs_line, input wire gfxs_ok,
 
     output wire [7:0]  vga_r, vga_g, vga_b,
@@ -34,7 +39,7 @@ module wrally2_video_top #(
 
     wire [9:0] hpos; wire [8:0] vpos; wire frame_end;
     wire hs_i, vs_i, hb_i, vb_i, de_i;
-    wrally2_video_timing u_timing (
+    snowboar_video_timing u_timing (
         .clk(clk), .rst(rst), .ce_pix(ce_pix), .twin(1'b0),
         .hpos(hpos), .vpos(vpos), .frame_end(frame_end),
         .hsync(hs_i), .vsync(vs_i), .hblank(hb_i), .vblank(vb_i),
@@ -42,12 +47,14 @@ module wrally2_video_top #(
     );
 
     wire [11:0] pal_index; wire opaque;
-    wrally2_gae1_video u_video (
+    snowboar_gae1_video u_video (
         .clk(clk), .ce(ce_pix), .hpos(hpos), .vpos(vpos), .frame_end(frame_end),
-        .vreg0(vreg0),
+        .vreg0(vreg0), .vreg1(vreg1),
         .wrd_a(wrd_a), .wrd_q(wrd_q),
-        .tp0_idx(tp0_idx), .tp0_rd(tp0_rd), .tp0_q(tp0_q),
+        .tp0_idx(tp0_idx), .tp0_rd(tp0_rd),
+        .tp1_idx(tp1_idx), .tp1_rd(tp1_rd), .tp1_gnt(tp1_gnt), .tp_q(tp_q),
         .rom_a0(rom_a0), .d0_line(gfx0_line), .gfx0_ok(gfx0_ok),
+        .rom_a1(rom_a1), .d1_line(gfx1_line), .gfx1_ok(gfx1_ok),
         .pal_index(pal_index), .opaque(opaque), .tm_ovr(tm_ovr)
     );
 
@@ -72,10 +79,9 @@ module wrally2_video_top #(
     wire [9:0] hpos_lb = hd[SPR_HDLY-1];
 
     wire [16:0] lb_q;
-    wrally2_gae1_sprite #(.LBDEPTH(512)) u_spr_l (
+    snowboar_gae1_sprite #(.LBDEPTH(512)) u_spr_l (
         .clk(clk), .ce(1'b1), .start(spr_start), .line(render_line),
-        .index(1'b0), .twin(1'b0),
-        .vreg0(vreg0), .vreg1(vreg1), .busy(),
+        .vreg0(spr_vreg0), .vreg1(spr_vreg1), .busy(),
         .spr_a(spr_a), .spr_q(spr_q),
         .rom_a(rom_as), .d_line(gfxs_line), .gfx_ok(gfxs_ok),
         .lb_x(hpos_lb), .lb_q(lb_q),
@@ -90,7 +96,7 @@ module wrally2_video_top #(
 
     assign pal_a = base_idx;
     wire [7:0] r8, g8, b8;
-    wrally2_gae1_palette u_pal (.pal_word(pal_q), .variant(variant), .r(r8), .g(g8), .b(b8));
+    snowboar_gae1_palette u_pal (.pal_word(pal_q), .variant(variant), .r(r8), .g(g8), .b(b8));
 
     localparam integer SD = LAT;
     reg [SD-1:0] hs_sr, vs_sr, hb_sr, vb_sr, de_sr;

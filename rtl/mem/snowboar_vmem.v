@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// World Rally 2 (Pocket) — the GAE1's video memories, one screen.
+// Snow Board Championship (Pocket) — the CG-1V's video memories, one screen.
+// World Rally 2's, with a second tilemap's tile pairs on the video port.
 //
 // jlrh's board kept six copies of the 64 KB video RAM (one per reader) and
 // two of the palette; the Pocket has room for two. So:
@@ -17,14 +18,16 @@
 //                  MAME's is.
 //   palette        8 KB, the 68000 on one port, the pixel on the other.
 //
-// The video port goes first to the tilemap (tp_rd, a tile's two words for
-// the next clock), then to the scroll reader when its address has moved
-// (or always while no copy runs), then to the copy.
+// The video port goes first to tilemap 0 (tp0_rd, a tile's two words for
+// the next clock), then to tilemap 1 (tp1_gnt says it was taken), then to
+// the scroll reader when its address has moved (or always while no copy
+// runs), then to the copy. A tilemap asks once per eight pixels at most, so
+// the scroll reader, which needs one clock in six, always gets its turn.
 
 `timescale 1ns/1ps
 `default_nettype none
 
-module wrally2_vmem (
+module snowboar_vmem (
     input  wire        clk,             // 48 MHz
     input  wire        rst,
 
@@ -38,9 +41,13 @@ module wrally2_vmem (
     output wire [15:0] cpu_vram_rdata,
     output reg  [15:0] cpu_pal_rdata,
 
-    // the tilemap: words 2i and 2i+1 for tp_rd's clock, in tp_q the next
-    input  wire        tp_rd,
-    input  wire [13:0] tp_idx,
+    // the tilemaps: words 2i and 2i+1 for the clock the read is taken, in
+    // tp_q the next (tilemap 0's always, tilemap 1's with tp1_gnt)
+    input  wire        tp0_rd,
+    input  wire [13:0] tp0_idx,
+    input  wire        tp1_rd,
+    input  wire [13:0] tp1_idx,
+    output wire        tp1_gnt,
     output wire [31:0] tp_q,
     // the scroll reader: wrd_q holds the last word read at wrd_a
     input  wire [14:0] wrd_a,
@@ -58,7 +65,7 @@ module wrally2_vmem (
 );
 
 `ifdef VERILATOR
-// The harness's scene mode (tb_wrally2 --scene) writes a MAME dump in here:
+// The harness's scene mode (tb_snowboar --scene) writes a MAME dump in here:
 // sc_sel 0 the VRAM, 1 the sprite buffer, 2 the palette.
 reg        sc_we   /*verilator public_flat_rw*/ = 1'b0;
 reg [1:0]  sc_sel  /*verilator public_flat_rw*/ = 2'd0;
@@ -76,6 +83,9 @@ reg  [14:0] wrd_last;
 reg         wrd_seen;
 
 localparam [1:0] K_NONE = 2'd0, K_TILE = 2'd1, K_SCROLL = 2'd2, K_COPY = 2'd3;
+wire        tp_rd   = tp0_rd | tp1_rd;
+wire [13:0] tp_idx  = tp0_rd ? tp0_idx : tp1_idx;
+assign      tp1_gnt = tp1_rd & ~tp0_rd;
 wire        scroll_due = !wrd_seen || wrd_a != wrd_last || !cp_run;
 wire [1:0]  b_kind = tp_rd ? K_TILE : scroll_due ? K_SCROLL : cp_run ? K_COPY : K_NONE;
 wire [12:0] b_row  = tp_rd ? tp_idx[13:1] : (b_kind == K_SCROLL) ? wrd_a[14:2] : cp_row;
@@ -86,10 +96,10 @@ reg  [1:0]  wrd_bank_q;
 reg  [12:0] b_row_q;
 reg  [1:0]  a_bank_q;
 
-// bank k's word at [16k +: 16], registered in wrally2_vram8
+// bank k's word at [16k +: 16], registered in snowboar_vram8
 wire [63:0] a_qv, b_qv;
 
-// Each bank's byte lane is a module of its own (wrally2_vram8): written as
+// Each bank's byte lane is a module of its own (snowboar_vram8): written as
 // arrays in this generate loop, Quartus split every one into two simple
 // dual-port copies, one a reader, 128 M10K for 64 KB.
 genvar k;
@@ -109,8 +119,8 @@ generate for (k = 0; k < 4; k = k + 1) begin : g_vram
     wire        awh_r = awh, awl_r = awl;
 `endif
     wire [7:0]  aqh, aql, bqh, bql;
-    wrally2_vram8 u_hi (.clk(clk), .a_addr(aa_r), .a_we(awh_r), .a_d(ad_r[15:8]), .a_q(aqh), .b_addr(b_row), .b_q(bqh));
-    wrally2_vram8 u_lo (.clk(clk), .a_addr(aa_r), .a_we(awl_r), .a_d(ad_r[7:0]),  .a_q(aql), .b_addr(b_row), .b_q(bql));
+    snowboar_vram8 u_hi (.clk(clk), .a_addr(aa_r), .a_we(awh_r), .a_d(ad_r[15:8]), .a_q(aqh), .b_addr(b_row), .b_q(bqh));
+    snowboar_vram8 u_lo (.clk(clk), .a_addr(aa_r), .a_we(awl_r), .a_d(ad_r[7:0]),  .a_q(aql), .b_addr(b_row), .b_q(bql));
     assign a_qv[16*k +: 16] = {aqh, aql};
     assign b_qv[16*k +: 16] = {bqh, bql};
 end endgenerate
@@ -181,7 +191,7 @@ endmodule
 
 // One byte lane of a VRAM bank: 8K x 8, port A the 68000's (read and write),
 // port B the video's (read), both registered: one true dual-port M10K group.
-module wrally2_vram8 (
+module snowboar_vram8 (
     input  wire        clk,
     input  wire [12:0] a_addr,
     input  wire        a_we,

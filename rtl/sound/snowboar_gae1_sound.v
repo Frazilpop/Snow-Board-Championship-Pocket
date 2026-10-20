@@ -1,11 +1,17 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Snow Board Championship (Pocket) — the CG-1V's sound (MAME's GAELCO_CG1V,
+// the GAE1's unchanged): 7 channels of 8-bit PCM from the gfx region, one
+// stereo sample every 128 clocks of its 1 MHz. jlrh's, as World Rally 2
+// keeps it; the banks are this board's.
+
 `default_nettype none
 
-module wrally2_gae1_sound #(
+module snowboar_gae1_sound #(
     parameter integer CLKDIV = 6144,
-    // TICKDIV != 0: a sample every TICKDIV board ticks (1664 = MAME's
-    // 128 us at 13 MHz), the first on the first tick after reset, as MAME's
+    // TICKDIV != 0: a sample every TICKDIV board ticks (1920 = MAME's
+    // 128 us at 15 MHz), the first on the first tick after reset, as MAME's
     // stream computes sample k at k * 128 us from power-on. While one is
-    // being computed busy holds board time (the 68000, the DS5002 and IRQ 6),
+    // being computed busy holds board time (the 68000 and IRQ 6),
     // so the program sees it whole at that instant, as in MAME, where a read
     // or write first brings the stream up to now. 0: jlrh's, a sample every
     // CLKDIV clocks of wall time.
@@ -76,9 +82,9 @@ module wrally2_gae1_sound #(
     reg signed [15:0] chl, chr;
     reg signed [31:0] accl, accr;
 
-    // set_bank_offsets(0, 0x200000, 0, 0): bank 1 is the second plane,
+    // set_bank_offsets(0, 0x400000, 0, 0): bank 1 is the second plane,
     // the others the first
-    wire [23:0] saddr = (bank == 2'd1 ? 24'h200000 : 24'h0) + endpos + {8'b0, rem};
+    wire [23:0] saddr = (bank == 2'd1 ? 24'h400000 : 24'h0) + endpos + {8'b0, rem};
 
     integer i;
     always @(posedge clk) begin

@@ -1,6 +1,6 @@
 `default_nettype none
 
-module wrally2_gae1_palette (
+module snowboar_gae1_palette (
     input  wire [15:0] pal_word,
     input  wire [3:0]  variant,
     output wire [7:0]  r, g, b
