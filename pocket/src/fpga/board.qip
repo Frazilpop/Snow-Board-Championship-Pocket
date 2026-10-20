@@ -1,0 +1,38 @@
+# The board's RTL: everything snowboar_board needs that is not part of the
+# Pocket shell. ap_core.qsf pulls it in whole. Keep in step with
+# sim/snowboar/build.sh, which compiles the same list (with fx68k's
+# hdl/verilator/ variant instead).
+#
+# Paths are relative to this file (pocket/src/fpga), via $::quartus(qip_path),
+# so the list works from any project that includes it.
+#
+# Files read with $readmem relative to the project directory are copied next
+# to ap_core.qpf by pocket/build.sh before Quartus runs (all derived, all
+# gitignored): fx68k's microrom.mem and nanorom.mem and the CG-1V's
+# volume_table.mem (tools/gen_volume_table.py).
+
+set q $::quartus(qip_path)
+set r [file join $q ../../../rtl]
+set t [file join $q ../../../third_party]
+
+set_global_assignment -name SYSTEMVERILOG_FILE [file join $r top/snowboar_board.sv]
+set_global_assignment -name SYSTEMVERILOG_FILE [file join $r mem/snowboar_romport.sv]
+set_global_assignment -name VERILOG_FILE       [file join $r cpu/snowboar_main.v]
+set_global_assignment -name VERILOG_FILE       [file join $r cpu/snowboar_addr_decode.v]
+set_global_assignment -name SYSTEMVERILOG_FILE [file join $r cpu/snowboar_cpu_clk.sv]
+set_global_assignment -name VERILOG_FILE       [file join $r cpu/snowboar_prot.v]
+set_global_assignment -name VERILOG_FILE       [file join $r io/snowboar_inputs.v]
+set_global_assignment -name SYSTEMVERILOG_FILE [file join $r io/snowboar_eeprom.sv]
+set_global_assignment -name VERILOG_FILE       [file join $r mem/snowboar_vmem.v]
+set_global_assignment -name VERILOG_FILE       [file join $r video/snowboar_video_top.v]
+set_global_assignment -name VERILOG_FILE       [file join $r video/snowboar_video_timing.v]
+set_global_assignment -name VERILOG_FILE       [file join $r video/snowboar_gae1_video.v]
+set_global_assignment -name VERILOG_FILE       [file join $r video/snowboar_gae1_tilemap.v]
+set_global_assignment -name VERILOG_FILE       [file join $r video/snowboar_gae1_sprite.v]
+set_global_assignment -name VERILOG_FILE       [file join $r video/snowboar_gae1_palette.v]
+set_global_assignment -name VERILOG_FILE       [file join $r sound/snowboar_gae1_sound.v]
+
+# fx68k: hdl/ is ijor's synthesis code.
+set_global_assignment -name SYSTEMVERILOG_FILE [file join $t fx68k/hdl/fx68k.sv]
+set_global_assignment -name SYSTEMVERILOG_FILE [file join $t fx68k/hdl/fx68kAlu.sv]
+set_global_assignment -name SYSTEMVERILOG_FILE [file join $t fx68k/hdl/uaddrPla.sv]

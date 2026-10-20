@@ -1,0 +1,42 @@
+{
+    "input": {
+        "magic": "APF_VER_1",
+        "controllers": [
+            {
+                "type": "default",
+                "mappings": [
+                    {
+                        "id": 0,
+                        "name": "Run",
+                        "key": "pad_btn_a"
+                    },
+                    {
+                        "id": 1,
+                        "name": "Grab 1",
+                        "key": "pad_btn_b"
+                    },
+                    {
+                        "id": 2,
+                        "name": "Grab 2",
+                        "key": "pad_btn_x"
+                    },
+                    {
+                        "id": 3,
+                        "name": "Start 2 (test screens)",
+                        "key": "pad_btn_y"
+                    },
+                    {
+                        "id": 6,
+                        "name": "Start",
+                        "key": "pad_btn_start"
+                    },
+                    {
+                        "id": 7,
+                        "name": "Coin",
+                        "key": "pad_btn_select"
+                    }
+                ]
+            }
+        ]
+    }
+}
