@@ -433,6 +433,7 @@ int main(int argc, char** argv) {
     bool irq_prev = false;
 
     std::map<int, long> cut_lines;      // sprite line -> times cut short
+    long spr_cut_work = 0;              // of those, cut with cells still to draw
     auto fold_sprites = [&]() {
         if (spr_max > spr_max_all) spr_max_all = spr_max;
         if (spr_cells > spr_cells_all) spr_cells_all = spr_cells;
@@ -446,7 +447,25 @@ int main(int argc, char** argv) {
         if (R.snowboar_board__DOT__u_video__DOT__u_spr_l__DOT__m_done) {
             int c = R.snowboar_board__DOT__u_video__DOT__u_spr_l__DOT__m_last;
             int n = R.snowboar_board__DOT__u_video__DOT__u_spr_l__DOT__m_ncell;
-            if (c == 0xffff) { spr_cut++; cut_lines[R.snowboar_board__DOT__u_video__DOT__u_spr_l__DOT__m_line]++; }
+            if (c == 0xffff) {
+                spr_cut++;
+                int ln = R.snowboar_board__DOT__u_video__DOT__u_spr_l__DOT__m_line;
+                cut_lines[ln]++;
+                // Was anything left to draw? Mid-entry, yes; else any enabled
+                // entry from the one reached on that covers the line.
+                bool left = R.snowboar_board__DOT__u_video__DOT__u_spr_l__DOT__m_mid;
+                int base = R.snowboar_board__DOT__u_video__DOT__u_spr_l__DOT__m_base;
+                for (int e = R.snowboar_board__DOT__u_video__DOT__u_spr_l__DOT__m_entry; !left && e < 512; e++) {
+                    int a = (base + 4 * e + 1) & 0x7fff;
+                    uint16_t w1 = a % 4 == 0 ? R.snowboar_board__DOT__u_vmem__DOT__g_sbuf__BRA__0__KET____DOT__m[a >> 2]
+                                : a % 4 == 1 ? R.snowboar_board__DOT__u_vmem__DOT__g_sbuf__BRA__1__KET____DOT__m[a >> 2]
+                                : a % 4 == 2 ? R.snowboar_board__DOT__u_vmem__DOT__g_sbuf__BRA__2__KET____DOT__m[a >> 2]
+                                :              R.snowboar_board__DOT__u_vmem__DOT__g_sbuf__BRA__3__KET____DOT__m[a >> 2];
+                    int rely = (ln - (w1 & 0x1ff)) & 0x1ff;
+                    if ((w1 & 0x200) && rely < ((((w1 >> 12) & 15) + 1) << 4)) left = true;
+                }
+                if (left) spr_cut_work++;
+            }
             else if (c > spr_max) spr_max = c;
             if (n > spr_cells) spr_cells = n;
         }
@@ -567,7 +586,7 @@ int main(int argc, char** argv) {
     if (!cut_lines.empty()) {
         fprintf(stderr, "sprite lines cut short (line x times):");
         for (auto& kv : cut_lines) fprintf(stderr, " %d x%ld", kv.first, kv.second);
-        fprintf(stderr, "\n");
+        fprintf(stderr, "\n%ld of them with cells still to draw\n", spr_cut_work);
     }
     fprintf(stderr, "tilemap lines overrun %d, board ticks lost %ld, most owed %d, longest waits (clocks) "
                     "program %d tilemap0 %d tilemap1 %d sprites %d sound %d\n",
