@@ -17,6 +17,7 @@ module snowboar_gae1_sprite #(
     input  wire        start,
     input  wire [8:0]  line,
     input  wire [15:0] vreg0, vreg1,
+    input  wire [9:0]  list_n0, list_n1,  // each half's last enabled entry + 1
     output reg         busy,
 
     output reg  [14:0] spr_a,
@@ -79,6 +80,8 @@ module snowboar_gae1_sprite #(
     assign      lb_q   = rbank ? lb1_rq : lb0_rq;
 
     wire [14:0] base_word = vreg1[4] ? 15'h800 : 15'h0;
+    // past the half's last enabled entry there is nothing to draw
+    wire [9:0]  list_n    = vreg1[4] ? list_n1 : list_n0;
     wire signed [11:0] spradj = -12'sd126 - {11'b0, vreg0[4]};
 
     wire [4:0] ex      = xflip ? (xsize - 5'd1 - cx) : cx;
@@ -214,7 +217,7 @@ module snowboar_gae1_sprite #(
                 yflip <= spr_q[10]; xflip <= spr_q[11];
                 ysize <= {1'b0, spr_q[15:12]} + 5'd1;
                 if (proceed_w) state <= RDW0;
-                else if (spr_e < 10'd511) spr_e <= spr_e + 10'd1;
+                else if (spr_e + 10'd1 < list_n) spr_e <= spr_e + 10'd1;
                 else state <= DON;
             end
             RDW0: begin
@@ -264,7 +267,7 @@ module snowboar_gae1_sprite #(
                        if (cx + 5'd1 < xsize) begin cx <= cx + 5'd1; state <= D5ADR; end
                        else state <= NEXT;
                    end
-            NEXT: if (spr_e < 10'd511) begin
+            NEXT: if (spr_e + 10'd1 < list_n) begin
                       spr_e <= spr_e + 10'd1;
                       state <= RDW1F;
                   end else state <= DON;

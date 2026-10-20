@@ -271,7 +271,7 @@ snowboar_gae1_sound #(.TICKDIV(SND_DEN), .TICKNUM(SND_NUM)) u_snd (
 // ================================================================ video
 wire [13:0] tp0_idx, tp1_idx; wire tp0_rd, tp1_rd, tp1_gnt; wire [31:0] tp_q;
 wire [14:0] wrd_a;   wire [15:0] wrd_q;
-wire [14:0] spr_a;   wire [15:0] spr_q;
+wire [14:0] spr_a;   wire [15:0] spr_q;   wire [9:0] spr_n0, spr_n1;
 wire [11:0] pal_a;   wire [15:0] pal_q;
 snowboar_vmem u_vmem (
     .clk(clk), .rst(cpu_rst),
@@ -283,6 +283,7 @@ snowboar_vmem u_vmem (
     .tp_q(tp_q),
     .wrd_a(wrd_a), .wrd_q(wrd_q),
     .snap(board_irq), .copying(vram_copying), .spr_a(spr_a), .spr_q(spr_q),
+    .spr_n0(spr_n0), .spr_n1(spr_n1),
     .pal_a(pal_a), .pal_q(pal_q)
 );
 
@@ -318,6 +319,7 @@ snowboar_video_top u_video (
     .tp0_idx(tp0_idx), .tp0_rd(tp0_rd), .tp1_idx(tp1_idx), .tp1_rd(tp1_rd), .tp1_gnt(tp1_gnt),
     .tp_q(tp_q),
     .wrd_a(wrd_a), .wrd_q(wrd_q), .spr_a(spr_a), .spr_q(spr_q),
+    .spr_n0(spr_n0), .spr_n1(spr_n1),
     .pal_a(pal_a), .pal_q(pal_q),
     .rom_a0(tm0_a), .gfx0_line(tm0_line), .gfx0_ok(tm0_ok),
     .rom_a1(tm1_a), .gfx1_line(tm1_line), .gfx1_ok(tm1_ok),

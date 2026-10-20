@@ -15,7 +15,8 @@
 //                  from, picture N's sprites from vblank N - 1's VRAM. The
 //                  copy takes 8,192 rows; `copying` holds board time
 //                  meanwhile, so the 68000 sees it done in an instant, as
-//                  MAME's is.
+//                  MAME's is. As it passes the sprite list it also finds
+//                  each half's length (spr_n0 / spr_n1, below).
 //   palette        8 KB, the 68000 on one port, the pixel on the other.
 //
 // The video port goes first to tilemap 0 (tp0_rd, a tile's two words for
@@ -58,6 +59,7 @@ module snowboar_vmem (
     output wire        copying,
     input  wire [14:0] spr_a,
     output wire [15:0] spr_q,
+    output reg  [9:0]  spr_n0, spr_n1,  // each half of the list: its last enabled entry + 1
 
     // the palette, for the pixel
     input  wire [11:0] pal_a,
@@ -152,6 +154,31 @@ always @(posedge clk) begin
     end
 end
 assign copying = snap | cp_run | cp_wr;
+
+// The list's length in each half, one past its last enabled entry: entry e
+// of half h is row 512h + e, enabled by bit 9 of its word 1. The sprite
+// engine stops looking down the list there rather than at entry 511. The
+// game fills its list from entry 0 (at most 70 of 512 enabled in MAME's
+// dumps), and every entry costs the engine a clock on every line: in the
+// line-up before GO that was ~470 of the 3,072 clocks a line has.
+always @(posedge clk) begin
+`ifdef VERILATOR
+    // the harness's scene mode writes the buffer itself, in any order and
+    // perhaps in reset
+    if (sc_we && sc_sel == 2'd1) begin
+        if (sc_addr[1:0] == 2'd1 && sc_addr[14:12] == 3'd0 && sc_data[9]) begin
+            if (sc_addr[11] && {1'b0, sc_addr[10:2]} >= spr_n1) spr_n1 <= {1'b0, sc_addr[10:2]} + 10'd1;
+            if (!sc_addr[11] && {1'b0, sc_addr[10:2]} >= spr_n0) spr_n0 <= {1'b0, sc_addr[10:2]} + 10'd1;
+        end
+    end else
+`endif
+    if (rst || (snap && !cp_run)) begin
+        spr_n0 <= 10'd0; spr_n1 <= 10'd0;
+    end else if (cp_wr && b_row_q[12:10] == 3'd0 && b_qv[25]) begin
+        if (b_row_q[9]) spr_n1 <= {1'b0, b_row_q[8:0]} + 10'd1;
+        else            spr_n0 <= {1'b0, b_row_q[8:0]} + 10'd1;
+    end
+end
 
 reg  [15:0] s_q [0:3];
 reg  [1:0]  spr_bank_q;

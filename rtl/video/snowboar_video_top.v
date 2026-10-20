@@ -22,6 +22,7 @@ module snowboar_video_top #(
     input  wire [31:0] tp_q,
     output wire [14:0] wrd_a,   input wire [15:0] wrd_q,
     output wire [14:0] spr_a,   input wire [15:0] spr_q,
+    input  wire [9:0]  spr_n0, spr_n1,       // the sprite list's halves' lengths
     output wire [11:0] pal_a,   input wire [15:0] pal_q,
 
     output wire [20:0] rom_a0,  input wire [63:0] gfx0_line, input wire gfx0_ok,
@@ -81,7 +82,7 @@ module snowboar_video_top #(
     wire [16:0] lb_q;
     snowboar_gae1_sprite #(.LBDEPTH(512)) u_spr_l (
         .clk(clk), .ce(1'b1), .start(spr_start), .line(render_line),
-        .vreg0(spr_vreg0), .vreg1(spr_vreg1), .busy(),
+        .vreg0(spr_vreg0), .vreg1(spr_vreg1), .list_n0(spr_n0), .list_n1(spr_n1), .busy(),
         .spr_a(spr_a), .spr_q(spr_q),
         .rom_a(rom_as), .d_line(gfxs_line), .gfx_ok(gfxs_ok),
         .lb_x(hpos_lb), .lb_q(lb_q),
