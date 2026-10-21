@@ -18,11 +18,6 @@
                     {
                         "id": 2,
                         "name": "Grab 2",
-                        "key": "pad_btn_x"
-                    },
-                    {
-                        "id": 3,
-                        "name": "Start 2 (test screens)",
                         "key": "pad_btn_y"
                     },
                     {

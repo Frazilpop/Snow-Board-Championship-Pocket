@@ -629,10 +629,15 @@ wire board_rst = rst_por | ~reset_n_48 | host_rst;
 // bit than another is invisible to a game polling at 60 Hz.
 //
 //   p1/p2 = {b3, b2, b1, up, down, left, right}: A is button 1 (Run, and
-//   the menus' pick), B and X buttons 2 and 3 (the grabs in the air). Select
-//   is the coin, Start is start. Y is player 2's start as well: the game's
-//   test screens leave only by "P1+P2", start 1 and start 2 together. A
-//   second controller (docked) is player 2, its Select coin 2.
+//   the menus' pick), B and Y buttons 2 and 3 (the grabs in the air) – the
+//   bottom and left face buttons, under the thumb beside A; X does nothing.
+//   Select is the coin, Start is start. Start 2 is only a docked second
+//   controller's Start, never a button of the Pocket's own: one press of it
+//   with a credit turns a race into a two-player game, which one Pocket
+//   cannot play. The test screens that leave only by "P1+P2" (Screen
+//   Adjust, the colours, Controls test, Test Sound) are left by Reset Game
+//   instead; Game options keeps its own Save & Exit. A second controller is
+//   player 2, its Select coin 2.
 //
 //   Left and right are the arcade's by default: the game's own Controls
 //   test shows the d-pad's right as the stick's right, and in a race it
@@ -643,12 +648,12 @@ wire [15:0] k1, k2;
 synch_3 #(.WIDTH(16)) s_k1 (.i(cont1_key[15:0]), .o(k1), .clk(clk_core), .rise(), .fall());
 synch_3 #(.WIDTH(16)) s_k2 (.i(cont2_key[15:0]), .o(k2), .clk(clk_core), .rise(), .fall());
 
-wire [6:0] in_p1    = {k1[6], k1[5], k1[4], k1[0], k1[1],
+wire [6:0] in_p1    = {k1[7], k1[5], k1[4], k1[0], k1[1],
                        swap_lr ? k1[3] : k1[2], swap_lr ? k1[2] : k1[3]};
-wire [6:0] in_p2    = {k2[6], k2[5], k2[4], k2[0], k2[1],
+wire [6:0] in_p2    = {k2[7], k2[5], k2[4], k2[0], k2[1],
                        swap_lr ? k2[3] : k2[2], swap_lr ? k2[2] : k2[3]};
 wire [1:0] in_coin  = {k2[14], k1[14]};
-wire [1:0] in_start = {k2[15] | k1[7], k1[15]};
+wire [1:0] in_start = {k2[15], k1[15]};
 
 wire inmenu_48;
 synch_3 s_inmenu48 (.i(osnotify_inmenu), .o(inmenu_48), .clk(clk_core), .rise(), .fall());

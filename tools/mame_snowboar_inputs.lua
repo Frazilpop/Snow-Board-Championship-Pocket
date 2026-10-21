@@ -45,6 +45,7 @@ local mode = os.getenv("INPUTS") or "none"
 local P = {
   coin  = field(":COIN", "Coin 1"),
   start = field(":COIN", "1 Player Start"),
+  start2 = field(":COIN", "2 Players Start"),
   test  = field(":COIN", "Service Mode"),
   up    = field(":P1", "P1 Up"),
   down  = field(":P1", "P1 Down"),
