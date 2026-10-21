@@ -403,12 +403,15 @@ wire [31:0] nv_bridge_rd;
 //   0xF1000010         write: Test Mode, a press of the "go to service mode
 //                      NOW" bit (COIN bit 2; see TEST MODE below)
 //   0xF1000014 [0]     diagnostic overlay (pocket_diag), see DIAGNOSTICS
+//   0xF1000018 [0]     swap left and right on both pads (persisted; off is
+//                      the arcade's own: see INPUTS)
 //
 // The board has no DIP switches: every setting is in the EEPROM, set in the
 // game's own test menu.
 
 reg  [2:0]  game_74  = 3'd0;
 reg         diag_74  = 1'b0;
+reg         swap_74  = 1'b0;
 reg         test_74  = 1'b0;                // toggles on each Test Mode press
 reg  [16:0] hrst_cnt = 17'd0;               //   1 ms at 74.25 MHz = 74,250
 wire        hrst_74  = (hrst_cnt != 17'd0);
@@ -421,6 +424,7 @@ always @(posedge clk_74a) begin
         32'hF100000C: hrst_cnt <= 17'd74250;
         32'hF1000010: test_74  <= ~test_74;
         32'hF1000014: diag_74  <= bridge_wr_data[0];
+        32'hF1000018: swap_74  <= bridge_wr_data[0];
         default: ;
         endcase
     end
@@ -431,6 +435,7 @@ always @(posedge clk_74a) begin
     32'h2???????: bridge_rd_data <= nv_bridge_rd;
     32'hF0000000: bridge_rd_data <= {29'd0, game_74};
     32'hF1000014: bridge_rd_data <= {31'd0, diag_74};
+    32'hF1000018: bridge_rd_data <= {31'd0, swap_74};
     32'hF8??????: bridge_rd_data <= cmd_bridge_rd_data;
     default:      bridge_rd_data <= 32'd0;
     endcase
@@ -603,12 +608,12 @@ core_bridge_cmd icb (
 
 // ======================================================= settings -> 48 MHz
 wire [2:0]  game;
-wire        host_rst, diag_opt;
+wire        host_rst, diag_opt, swap_lr;
 
-pocket_sync_bus #(.W(5), .INIT(5'd0)) s_cfg48 (
+pocket_sync_bus #(.W(6), .INIT(6'd0)) s_cfg48 (
     .clk (clk_core),
-    .d   ({game_74, hrst_74, diag_74}),
-    .q   ({game,    host_rst, diag_opt})
+    .d   ({game_74, hrst_74, diag_74, swap_74}),
+    .q   ({game,    host_rst, diag_opt, swap_lr})
 );
 
 // A press, not a level: the toggle crosses, and each of its edges is one.
@@ -628,12 +633,20 @@ wire board_rst = rst_por | ~reset_n_48 | host_rst;
 //   is the coin, Start is start. Y is player 2's start as well: the game's
 //   test screens leave only by "P1+P2", start 1 and start 2 together. A
 //   second controller (docked) is player 2, its Select coin 2.
+//
+//   Left and right are the arcade's by default: the game's own Controls
+//   test shows the d-pad's right as the stick's right, and in a race it
+//   sends the rider towards the screen's right – his own left as he comes
+//   down towards the viewer. "Swap Left/Right" trades the two for anyone
+//   who steers as the rider does.
 wire [15:0] k1, k2;
 synch_3 #(.WIDTH(16)) s_k1 (.i(cont1_key[15:0]), .o(k1), .clk(clk_core), .rise(), .fall());
 synch_3 #(.WIDTH(16)) s_k2 (.i(cont2_key[15:0]), .o(k2), .clk(clk_core), .rise(), .fall());
 
-wire [6:0] in_p1    = {k1[6], k1[5], k1[4], k1[0], k1[1], k1[2], k1[3]};
-wire [6:0] in_p2    = {k2[6], k2[5], k2[4], k2[0], k2[1], k2[2], k2[3]};
+wire [6:0] in_p1    = {k1[6], k1[5], k1[4], k1[0], k1[1],
+                       swap_lr ? k1[3] : k1[2], swap_lr ? k1[2] : k1[3]};
+wire [6:0] in_p2    = {k2[6], k2[5], k2[4], k2[0], k2[1],
+                       swap_lr ? k2[3] : k2[2], swap_lr ? k2[2] : k2[3]};
 wire [1:0] in_coin  = {k2[14], k1[14]};
 wire [1:0] in_start = {k2[15] | k1[7], k1[15]};
 

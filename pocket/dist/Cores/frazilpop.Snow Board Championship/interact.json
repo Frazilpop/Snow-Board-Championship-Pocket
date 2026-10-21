@@ -19,6 +19,18 @@
                 "value": 1
             },
             {
+                "name": "Swap Left/Right",
+                "id": 16,
+                "type": "check",
+                "enabled": true,
+                "persist": true,
+                "address": "0xF1000018",
+                "defaultval": 0,
+                "value": "0x1",
+                "value_off": "0x0",
+                "mask": "0xFFFFFFFE"
+            },
+            {
                 "name": "Diagnostic overlay",
                 "id": 14,
                 "type": "check",
