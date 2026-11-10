@@ -48,7 +48,7 @@ done
 
 DEPS=(
   "gaelco-fpga|jlrh/gaelco-fpga|main|GAE1 / CG-1V video and sound, 68000 bus (World Rally 2, Alligator Hunt)|GPL-3.0|yes|"
-  "fx68k|jtfpga/fx68k|master|68000 main CPU (Verilator variant)|GPL-3.0-only|yes|"
+  "fx68k|jtfpga/fx68k|master|68000 main CPU (Verilator variant)|GPL-3.0-or-later|yes|"
   "pocket-utils|agg23/analogue-pocket-utils|master|Pocket shell IP: data loader, PSRAM, I2S audio, sync FIFO|MIT|yes|"
 )
 
